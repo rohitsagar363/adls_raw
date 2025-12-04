@@ -1,0 +1,67 @@
+README - Step-by-Step Execution Guide
+Step 1: Install Libraries
+This code requires libraries that are not in the default Databricks Runtime.
+
+Open your Databricks Cluster settings.
+
+Go to the Libraries tab.
+
+Click Install New -> PyPI.
+
+Enter: aiohttp tenacity
+
+Click Install. (Restart the cluster if needed).
+
+Step 2: Configure Secrets (Security)
+Do not paste your Talkdesk API Token into the code.
+
+Open the Databricks CLI (or use the Secrets UI if your workspace has it).
+
+Create a scope: databricks secrets create-scope --scope talkdesk_scope
+
+Add your token: databricks secrets put --scope talkdesk_scope --key api_token
+
+Paste your actual Talkdesk Bearer Token when prompted.
+
+Step 3: Run the Historical Backfill (6 Months)
+Open the Notebook.
+
+Look at the Widgets at the top of the notebook.
+
+storage_account: Enter your ADLS account name.
+
+container: Enter raw.
+
+mode: Select backfill.
+
+start_date: 2023-05-01 (Your desired start).
+
+end_date: 2023-11-01 (Your desired end).
+
+Click Run All.
+
+What happens: The script will generate ~4,300 tasks (one per hour). It will process them 5 at a time.
+
+Output: Files will appear in ADLS: raw/talkdesk/interactions/2023/05/01/0000_interactions.json
+
+Step 4: Schedule the Hourly Job
+Click Schedule (top right of Notebook) or go to Workflows.
+
+Click Create Job.
+
+Task Name: Talkdesk_Hourly_Ingest.
+
+Type: Notebook.
+
+Parameters: Add a parameter key mode with value incremental. (Ignore start/end dates, the script calculates them automatically in incremental mode).
+
+Trigger: Scheduled -> Every Hour (Cron: 0 * * * *).
+
+Cluster: Select your existing cluster (or a small Job Cluster).
+
+Why this succeeds where others fail
+Small File Prevention: It automatically merges paginated API responses (50 items per page) into Hourly Files (thousands of items per file). This makes the "Read" step later 10x faster.
+
+No Mounts Required: It uses sc._gateway to talk to ADLS via the cluster's identity. If your cluster can see the data, this script can write to it.
+
+Cost: It runs on the Driver. If you use a "Small" node, this ingestion costs pennies.
